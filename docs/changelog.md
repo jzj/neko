@@ -2,8 +2,14 @@
 
 ## master branch
 
+### Misc
+- Automatic WebRTC SDP negotiation using onnegotiationneeded handlers. This allows adding/removing track on demand in a session.
+
+## [n.eko v2.5](https://github.com/m1k1o/neko/releases/tag/v2.5)
+
 ### Bugs
-- Audio on iOS works now!
+- Fix ungoogled-chromium auto build bug.
+- Audio on iOS works now! Apparently only for 15+ though [#62](https://github.com/m1k1o/neko/issues/62).
 
 ### New Features
 - Lock controls for users, globally.
@@ -14,6 +20,8 @@
 
 ### Misc
 - ARM-based images not bound to Raspberry Pi only.
+- Repository cleanup, renamed `.m1k1o` to `.docker`.
+- Updated docs, now available at https://neko.m1k1o.net.
 - Add japanese characters support.
 - Sanitize display name and markdown codeblock input to prevent xss.
 - Display unmute overlay when joined.
