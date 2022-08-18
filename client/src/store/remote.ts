@@ -3,23 +3,28 @@ import { Member } from '~/neko/types'
 import { EVENT } from '~/neko/events'
 import { accessor } from '~/store'
 
+const keyboardModifierState = (capsLock: boolean, numLock: boolean, scrollLock: boolean) =>
+  Number(capsLock) + 2 * Number(numLock) + 4 * Number(scrollLock)
+
 export const namespaced = true
 
 export const state = () => ({
   id: '',
   clipboard: '',
   locked: false,
+  implicitHosting: true,
+  keyboardModifierState: -1,
 })
 
 export const getters = getterTree(state, {
   hosting: (state, getters, root) => {
-    return root.user.id === state.id
+    return root.user.id === state.id || state.implicitHosting
   },
   hosted: (state, getters, root) => {
-    return state.id !== ''
+    return state.id !== '' || state.implicitHosting
   },
   host: (state, getters, root) => {
-    return root.user.member[state.id] || null
+    return root.user.members[state.id] || (state.implicitHosting && root.user.id) || null
   },
 })
 
@@ -36,8 +41,16 @@ export const mutations = mutationTree(state, {
     state.clipboard = clipboard
   },
 
+  setKeyboardModifierState(state, { capsLock, numLock, scrollLock }) {
+    state.keyboardModifierState = keyboardModifierState(capsLock, numLock, scrollLock)
+  },
+
   setLocked(state, locked: boolean) {
     state.locked = locked
+  },
+
+  setImplicitHosting(state, val: boolean) {
+    state.implicitHosting = val
   },
 
   reset(state) {
@@ -71,7 +84,7 @@ export const actions = actionTree(
     },
 
     request({ getters }) {
-      if (!accessor.connected || !getters.hosting) {
+      if (!accessor.connected || getters.hosting) {
         return
       }
 
@@ -79,7 +92,7 @@ export const actions = actionTree(
     },
 
     release({ getters }) {
-      if (!accessor.connected || getters.hosting) {
+      if (!accessor.connected || !getters.hosting) {
         return
       }
 
@@ -140,6 +153,15 @@ export const actions = actionTree(
       }
 
       $client.sendMessage(EVENT.CONTROL.KEYBOARD, { layout: accessor.settings.keyboard_layout })
-    }
+    },
+
+    syncKeyboardModifierState({ state, getters }, { capsLock, numLock, scrollLock }) {
+      if (state.keyboardModifierState === keyboardModifierState(capsLock, numLock, scrollLock)) {
+        return
+      }
+
+      accessor.remote.setKeyboardModifierState({ capsLock, numLock, scrollLock })
+      $client.sendMessage(EVENT.CONTROL.KEYBOARD, { capsLock, numLock, scrollLock })
+    },
   },
 )

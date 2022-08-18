@@ -2,18 +2,17 @@ package http
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"os"
 
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"n.eko.moe/neko/internal/http/endpoint"
-	"n.eko.moe/neko/internal/http/middleware"
-	"n.eko.moe/neko/internal/types"
-	"n.eko.moe/neko/internal/types/config"
+	"m1k1o/neko/internal/types"
+	"m1k1o/neko/internal/types/config"
 )
 
 type Server struct {
@@ -24,32 +23,53 @@ type Server struct {
 }
 
 func New(conf *config.Server, webSocketHandler types.WebSocketHandler) *Server {
-	logger := log.With().Str("module", "webrtc").Logger()
+	logger := log.With().Str("module", "http").Logger()
 
 	router := chi.NewRouter()
-	// router.Use(middleware.Recoverer) // Recover from panics without crashing server
 	router.Use(middleware.RequestID) // Create a request ID for each request
-	router.Use(middleware.Logger)    // Log API request calls
+	router.Use(middleware.RequestLogger(&logformatter{logger}))
+	router.Use(middleware.Recoverer) // Recover from panics without crashing server
 
 	router.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
-		webSocketHandler.Upgrade(w, r)
+		err := webSocketHandler.Upgrade(w, r)
+		if err != nil {
+			logger.Warn().Err(err).Msg("failed to upgrade websocket conection")
+		}
+	})
+
+	router.Get("/stats", func(w http.ResponseWriter, r *http.Request) {
+		password := r.URL.Query().Get("pwd")
+		isAdmin, err := webSocketHandler.IsAdmin(password)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
+
+		if !isAdmin {
+			http.Error(w, "bad authorization", http.StatusUnauthorized)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		stats := webSocketHandler.Stats()
+		if err := json.NewEncoder(w).Encode(stats); err != nil {
+			logger.Warn().Err(err).Msg("failed writing json error response")
+		}
+	})
+
+	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("true"))
 	})
 
 	fs := http.FileServer(http.Dir(conf.Static))
 	router.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-		if _, err := os.Stat(conf.Static + r.RequestURI); os.IsNotExist(err) {
-			http.StripPrefix(r.RequestURI, fs).ServeHTTP(w, r)
-		} else {
+		if _, err := os.Stat(conf.Static + r.URL.Path); !os.IsNotExist(err) {
 			fs.ServeHTTP(w, r)
+		} else {
+			http.NotFound(w, r)
 		}
 	})
-
-	router.NotFound(endpoint.Handle(func(w http.ResponseWriter, r *http.Request) error {
-		return &endpoint.HandlerError{
-			Status:  http.StatusNotFound,
-			Message: fmt.Sprintf("file '%s' is not found", r.RequestURI),
-		}
-	}))
 
 	server := &http.Server{
 		Addr:    conf.Bind,

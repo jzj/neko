@@ -1,9 +1,9 @@
 package websocket
 
 import (
-	"n.eko.moe/neko/internal/types"
-	"n.eko.moe/neko/internal/types/event"
-	"n.eko.moe/neko/internal/types/message"
+	"m1k1o/neko/internal/types"
+	"m1k1o/neko/internal/types/event"
+	"m1k1o/neko/internal/types/message"
 )
 
 func (h *MessageHandler) SessionCreated(id string, session types.Session) error {
@@ -12,9 +12,24 @@ func (h *MessageHandler) SessionCreated(id string, session types.Session) error 
 		return err
 	}
 
+	// send initialization information
+	if err := session.Send(message.SystemInit{
+		Event:           event.SYSTEM_INIT,
+		ImplicitHosting: h.webrtc.ImplicitControl(),
+		Locks:           h.locked,
+	}); err != nil {
+		h.logger.Warn().Str("id", id).Err(err).Msgf("sending event %s has failed", event.SYSTEM_INIT)
+		return err
+	}
+
 	if session.Admin() {
 		// send screen configurations if admin
 		if err := h.screenConfigurations(id, session); err != nil {
+			return err
+		}
+
+		// send broadcast status if admin
+		if err := h.boradcastStatus(session); err != nil {
 			return err
 		}
 	}

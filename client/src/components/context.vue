@@ -3,7 +3,7 @@
     <template slot-scope="child" v-if="child.data">
       <li class="header">
         <div class="user">
-          <img :src="`https://ui-avatars.com/api/?name=${child.data.member.displayname}.png&size=25`" />
+          <neko-avatar class="avatar" :seed="child.data.member.displayname" :size="25" />
           <strong>{{ child.data.member.displayname }}</strong>
         </div>
       </li>
@@ -18,20 +18,20 @@
           <span @click="mute(child.data.member)" v-if="!child.data.member.muted">{{ $t('context.mute') }}</span>
           <span @click="unmute(child.data.member)" v-else>{{ $t('context.unmute') }}</span>
         </li>
-        <li v-if="child.data.member.id === host">
+        <li v-if="child.data.member.id === host && !implicitHosting">
           <span @click="adminRelease(child.data.member)">{{ $t('context.release') }}</span>
         </li>
-        <li v-if="child.data.member.id === host">
+        <li v-if="child.data.member.id === host && !implicitHosting">
           <span @click="adminControl(child.data.member)">{{ $t('context.take') }}</span>
         </li>
         <li>
-          <span v-if="child.data.member.id !== host" @click="adminGive(child.data.member)">{{
+          <span v-if="child.data.member.id !== host && !implicitHosting" @click="adminGive(child.data.member)">{{
             $t('context.give')
           }}</span>
         </li>
       </template>
       <template v-else>
-        <li v-if="hosting">
+        <li v-if="hosting && !implicitHosting">
           <span @click="give(child.data.member)">{{ $t('context.give') }}</span>
         </li>
       </template>
@@ -39,10 +39,10 @@
       <template v-if="admin && !child.data.member.admin">
         <li class="seperator" />
         <li>
-          <span @click="kick(child.data.member)" style="color: #f04747;">{{ $t('context.kick') }}</span>
+          <span @click="kick(child.data.member)" style="color: #f04747">{{ $t('context.kick') }}</span>
         </li>
         <li>
-          <span @click="ban(child.data.member)" style="color: #f04747;">{{ $t('context.ban') }}</span>
+          <span @click="ban(child.data.member)" style="color: #f04747">{{ $t('context.ban') }}</span>
         </li>
       </template>
     </template>
@@ -80,7 +80,7 @@
           align-content: center;
           padding: 5px 0;
 
-          img {
+          .avatar {
             width: 25px;
             height: 25px;
             border-radius: 50%;
@@ -137,11 +137,13 @@
 
   // @ts-ignore
   import { VueContext } from 'vue-context'
+  import Avatar from './avatar.vue'
 
   @Component({
     name: 'neko-context',
     components: {
       'vue-context': VueContext,
+      'neko-avatar': Avatar,
     },
   })
   export default class extends Vue {
@@ -159,68 +161,72 @@
       return this.$accessor.remote.id
     }
 
+    get implicitHosting() {
+      return this.$accessor.remote.implicitHosting
+    }
+
     open(event: MouseEvent, data: any) {
       this.context.open(event, data)
     }
 
-    kick(member: Member) {
-      this.$swal({
+    async kick(member: Member) {
+      const value = await this.$swal({
         title: this.$t('context.confirm.kick_title', { name: member.displayname }) as string,
         text: this.$t('context.confirm.kick_text', { name: member.displayname }) as string,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: this.$t('context.confirm.button_yes') as string,
         cancelButtonText: this.$t('context.confirm.button_cancel') as string,
-      }).then(({ value }) => {
-        if (value) {
-          this.$accessor.user.kick(member)
-        }
       })
+
+      if (value) {
+        this.$accessor.user.kick(member)
+      }
     }
 
-    ban(member: Member) {
-      this.$swal({
+    async ban(member: Member) {
+      const value = await this.$swal({
         title: this.$t('context.confirm.ban_title', { name: member.displayname }) as string,
         text: this.$t('context.confirm.ban_text', { name: member.displayname }) as string,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: this.$t('context.confirm.button_yes') as string,
         cancelButtonText: this.$t('context.confirm.button_cancel') as string,
-      }).then(({ value }) => {
-        if (value) {
-          this.$accessor.user.ban(member)
-        }
       })
+
+      if (value) {
+        this.$accessor.user.ban(member)
+      }
     }
 
-    mute(member: Member) {
-      this.$swal({
+    async mute(member: Member) {
+      const value = await this.$swal({
         title: this.$t('context.confirm.mute_title', { name: member.displayname }) as string,
         text: this.$t('context.confirm.mute_text', { name: member.displayname }) as string,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: this.$t('context.confirm.button_yes') as string,
         cancelButtonText: this.$t('context.confirm.button_cancel') as string,
-      }).then(({ value }) => {
-        if (value) {
-          this.$accessor.user.mute(member)
-        }
       })
+
+      if (value) {
+        this.$accessor.user.mute(member)
+      }
     }
 
-    unmute(member: Member) {
-      this.$swal({
+    async unmute(member: Member) {
+      const value = await this.$swal({
         title: this.$t('context.confirm.unmute_title', { name: member.displayname }) as string,
         text: this.$t('context.confirm.unmute_text', { name: member.displayname }) as string,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: this.$t('context.confirm.button_yes') as string,
         cancelButtonText: this.$t('context.confirm.button_cancel') as string,
-      }).then(({ value }) => {
-        if (value) {
-          this.$accessor.user.unmute(member)
-        }
       })
+
+      if (value) {
+        this.$accessor.user.unmute(member)
+      }
     }
 
     adminRelease(member: Member) {

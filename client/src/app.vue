@@ -5,20 +5,20 @@
     </template>
     <template v-else>
       <main class="neko-main">
-        <div class="header-container">
+        <div v-if="!hideControls" class="header-container">
           <neko-header />
         </div>
         <div class="video-container">
-          <neko-video ref="video" />
+          <neko-video ref="video" :hideControls="hideControls" @control-attempt="controlAttempt" />
         </div>
-        <div class="room-container">
+        <div v-if="!hideControls" class="room-container">
           <neko-members />
           <div class="room-menu">
             <div class="settings">
               <neko-menu />
             </div>
             <div class="controls">
-              <neko-controls />
+              <neko-controls :shakeKbd="shakeKbd" />
             </div>
             <div class="emotes">
               <neko-emotes />
@@ -26,10 +26,16 @@
           </div>
         </div>
       </main>
-      <neko-side v-if="side" />
+      <neko-side v-if="!hideControls && side" />
       <neko-connect v-if="!connected" />
       <neko-about v-if="about" />
-      <notifications group="neko" position="top left" style="top: 50px;" />
+      <notifications
+        v-if="!hideControls"
+        group="neko"
+        position="top left"
+        style="top: 50px; pointer-events: none"
+        :ignoreDuplicates="true"
+      />
     </template>
   </div>
 </template>
@@ -109,31 +115,35 @@
   }
 
   @media only screen and (max-width: 600px) {
-    #neko {
-      &.expanded {
-        .neko-main {
-          transform: translateX(-$side-width);
+    #neko.expanded {
+      .neko-main {
+        transform: translateX(calc(-100% + 65px));
+
+        video {
+          display: none;
         }
-        .neko-menu {
-          transform: translateX(-$side-width);
-        }
+      }
+
+      .neko-menu {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 65px;
+        width: calc(100% - 65px);
       }
     }
   }
 
   @media only screen and (max-width: 768px) {
-    #neko {
-      .neko-main {
-        .room-container {
-          display: none;
-        }
-      }
+    #neko .neko-main .room-container {
+      display: none;
     }
   }
 </style>
 
 <script lang="ts">
-  import { Vue, Component, Ref } from 'vue-property-decorator'
+  import { Vue, Component, Ref, Watch } from 'vue-property-decorator'
 
   import Connect from '~/components/connect.vue'
   import Video from '~/components/video.vue'
@@ -163,6 +173,27 @@
   })
   export default class extends Vue {
     @Ref('video') video!: Video
+
+    shakeKbd = false
+
+    get hideControls() {
+      return !!new URL(location.href).searchParams.get('cast')
+    }
+
+    @Watch('hideControls', { immediate: true })
+    onHideControls(enabled: boolean) {
+      if (enabled) {
+        this.$accessor.video.setMuted(false)
+        this.$accessor.settings.setSound(false)
+      }
+    }
+
+    controlAttempt() {
+      if (this.shakeKbd || this.$accessor.remote.hosted) return
+
+      this.shakeKbd = true
+      window.setTimeout(() => (this.shakeKbd = false), 5000)
+    }
 
     get about() {
       return this.$accessor.client.about

@@ -1,16 +1,17 @@
 <template>
   <ul>
-    <li v-if="!isTouch">
+    <li v-if="!implicitHosting && (!controlLocked || hosting)">
       <i
         :class="[
-          hosted && !hosting ? 'disabled' : '',
-          !hosted && !hosting ? 'faded' : '',
+          !disabeld && shakeKbd ? 'shake' : '',
+          disabeld && !hosting ? 'disabled' : '',
+          !disabeld && !hosting ? 'faded' : '',
           'fas',
           'fa-keyboard',
           'request',
         ]"
         v-tooltip="{
-          content: !hosted || hosting ? (hosting ? $t('controls.release') : $t('controls.request')) : '',
+          content: !disabeld || hosting ? (hosting ? $t('controls.release') : $t('controls.request')) : '',
           placement: 'top',
           offset: 5,
           boundariesElement: 'body',
@@ -19,7 +20,19 @@
         @click.stop.prevent="toggleControl"
       />
     </li>
-    <li>
+    <li class="no-pointer" v-if="implicitHosting">
+      <i
+        :class="[controlLocked ? 'disabled' : '', 'fas', 'fa-mouse-pointer']"
+        v-tooltip="{
+          content: controlLocked ? $t('controls.hasnot') : $t('controls.has'),
+          placement: 'top',
+          offset: 5,
+          boundariesElement: 'body',
+          delay: { show: 300, hide: 100 },
+        }"
+      />
+    </li>
+    <li v-if="implicitHosting || (!implicitHosting && (!controlLocked || hosting))">
       <label
         class="switch"
         v-tooltip="{
@@ -30,7 +43,7 @@
           delay: { show: 300, hide: 100 },
         }"
       >
-        <input type="checkbox" v-model="locked" :disabled="!hosting" />
+        <input type="checkbox" v-model="locked" :disabled="!hosting || (implicitHosting && controlLocked)" />
         <span />
       </label>
     </li>
@@ -53,6 +66,46 @@
 </template>
 
 <style lang="scss" scoped>
+  .shake {
+    animation: shake 1.25s cubic-bezier(0, 0, 0, 1);
+  }
+
+  @keyframes shake {
+    0% {
+      transform: scale(1) translate(0px, 0) rotate(0);
+    }
+    10% {
+      transform: scale(1.25) translate(-2px, -2px) rotate(-20deg);
+    }
+    20% {
+      transform: scale(1.5) translate(4px, -4px) rotate(20deg);
+    }
+    30% {
+      transform: scale(1.75) translate(-4px, -6px) rotate(-20deg);
+    }
+    40% {
+      transform: scale(2) translate(6px, -8px) rotate(20deg);
+    }
+    50% {
+      transform: scale(2.25) translate(-6px, -10px) rotate(-20deg);
+    }
+    60% {
+      transform: scale(2) translate(6px, -8px) rotate(20deg);
+    }
+    70% {
+      transform: scale(1.75) translate(-4px, -6px) rotate(-20deg);
+    }
+    80% {
+      transform: scale(1.5) translate(4px, -4px) rotate(20deg);
+    }
+    90% {
+      transform: scale(1.25) translate(-2px, -2px) rotate(-20deg);
+    }
+    100% {
+      transform: scale(1) translate(0px, 0) rotate(0);
+    }
+  }
+
   ul {
     display: flex;
     flex-direction: row;
@@ -63,6 +116,10 @@
     li {
       font-size: 24px;
       cursor: pointer;
+
+      &.no-pointer {
+        cursor: default;
+      }
 
       i {
         padding: 0 5px;
@@ -155,7 +212,7 @@
           &:before {
             color: $background-tertiary;
             font-weight: 900;
-            font-family: 'Font Awesome 5 Free';
+            font-family: 'Font Awesome 6 Free';
             content: '\f3c1';
             font-size: 8px;
             line-height: 18px;
@@ -195,23 +252,26 @@
 </style>
 
 <script lang="ts">
-  import { Vue, Component } from 'vue-property-decorator'
+  import { Vue, Component, Prop } from 'vue-property-decorator'
 
   @Component({ name: 'neko-controls' })
   export default class extends Vue {
-    get isTouch() {
-      return (
-        (typeof navigator.maxTouchPoints !== 'undefined' ? navigator.maxTouchPoints < 0 : false) ||
-        'ontouchstart' in document.documentElement
-      )
+    @Prop(Boolean) readonly shakeKbd!: boolean
+
+    get controlLocked() {
+      return 'control' in this.$accessor.locked && this.$accessor.locked['control'] && !this.$accessor.user.admin
     }
 
-    get hosted() {
+    get disabeld() {
       return this.$accessor.remote.hosted
     }
 
     get hosting() {
       return this.$accessor.remote.hosting
+    }
+
+    get implicitHosting() {
+      return this.$accessor.remote.implicitHosting
     }
 
     get volume() {

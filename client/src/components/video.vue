@@ -2,7 +2,7 @@
   <div ref="component" class="video">
     <div ref="player" class="player">
       <div ref="container" class="player-container">
-        <video ref="video" />
+        <video ref="video" playsinline />
         <div class="emotes">
           <template v-for="(emote, index) in emotes">
             <neko-emote :id="index" :key="index" />
@@ -21,14 +21,17 @@
           @mouseenter.stop.prevent="onMouseEnter"
           @mouseleave.stop.prevent="onMouseLeave"
         />
-        <div v-if="!playing" class="player-overlay">
-          <i @click.stop.prevent="toggle" v-if="playable" class="fas fa-play-circle" />
+        <div v-if="!playing && playable" class="player-overlay" @click.stop.prevent="toggle">
+          <i class="fas fa-play-circle" />
+        </div>
+        <div v-if="mutedOverlay && muted" class="player-overlay" @click.stop.prevent="unmute">
+          <i class="fas fa-volume-up" />
         </div>
         <div ref="aspect" class="player-aspect" />
       </div>
-      <ul v-if="!fullscreen" class="video-menu">
+      <ul v-if="!fullscreen && !hideControls" class="video-menu top">
         <li><i @click.stop.prevent="requestFullscreen" class="fas fa-expand"></i></li>
-        <li v-if="admin"><i @click.stop.prevent="onResolution" class="fas fa-desktop"></i></li>
+        <li v-if="admin"><i @click.stop.prevent="openResolution" class="fas fa-desktop"></i></li>
         <li class="request-control">
           <i
             :class="[hosted && !hosting ? 'disabled' : '', !hosted && !hosting ? 'faded' : '', 'fas', 'fa-keyboard']"
@@ -36,7 +39,21 @@
           />
         </li>
       </ul>
-      <neko-resolution ref="resolution" />
+      <ul v-if="!fullscreen && !hideControls" class="video-menu bottom">
+        <li v-if="hosting && (!clipboard_read_available || !clipboard_write_available)">
+          <i @click.stop.prevent="openClipboard" class="fas fa-clipboard"></i>
+        </li>
+        <li>
+          <i
+            v-if="pip_available"
+            @click.stop.prevent="requestPictureInPicture"
+            v-tooltip="{ content: 'Picture-in-Picture', placement: 'left', offset: 5, boundariesElement: 'body' }"
+            class="fas fa-external-link-alt"
+          />
+        </li>
+      </ul>
+      <neko-resolution ref="resolution" v-if="admin" />
+      <neko-clipboard ref="clipboard" v-if="hosting && (!clipboard_read_available || !clipboard_write_available)" />
     </div>
   </div>
 </template>
@@ -51,11 +68,19 @@
       display: flex;
       justify-content: center;
       align-items: center;
+      background: #000;
 
       .video-menu {
         position: absolute;
         right: 20px;
-        top: 15px;
+
+        &.top {
+          top: 15px;
+        }
+
+        &.bottom {
+          bottom: 15px;
+        }
 
         li {
           margin: 0 0 10px 0;
@@ -89,13 +114,17 @@
               display: inline-block;
             }
           }
+
+          &:last-child {
+            margin: 0;
+          }
         }
       }
 
       .player-container {
         position: relative;
         width: 100%;
-        max-width: 16 / 9 * 100vh;
+        max-width: calc(16 / 9 * 100vh);
 
         video {
           position: absolute;
@@ -126,13 +155,11 @@
           display: flex;
           justify-content: center;
           align-items: center;
+          cursor: pointer;
 
-          i {
-            cursor: pointer;
-            &::before {
-              font-size: 120px;
-              text-align: center;
-            }
+          i::before {
+            font-size: 120px;
+            text-align: center;
           }
 
           &.hidden {
@@ -158,19 +185,25 @@
 </style>
 
 <script lang="ts">
-  import { Component, Ref, Watch, Vue } from 'vue-property-decorator'
+  import { Component, Ref, Watch, Vue, Prop } from 'vue-property-decorator'
   import ResizeObserver from 'resize-observer-polyfill'
+  import { elementRequestFullscreen, onFullscreenChange, isFullscreen } from '~/utils'
 
   import Emote from './emote.vue'
   import Resolution from './resolution.vue'
+  import Clipboard from './clipboard.vue'
 
+  // @ts-ignore
   import GuacamoleKeyboard from '~/utils/guacamole-keyboard.ts'
+
+  const WHEEL_LINE_HEIGHT = 19
 
   @Component({
     name: 'neko-video',
     components: {
       'neko-emote': Emote,
       'neko-resolution': Resolution,
+      'neko-clipboard': Clipboard,
     },
   })
   export default class extends Vue {
@@ -180,12 +213,17 @@
     @Ref('aspect') readonly _aspect!: HTMLElement
     @Ref('player') readonly _player!: HTMLElement
     @Ref('video') readonly _video!: HTMLVideoElement
-    @Ref('resolution') readonly _resolution!: any
+    @Ref('resolution') readonly _resolution!: Resolution
+    @Ref('clipboard') readonly _clipboard!: Clipboard
+
+    @Prop(Boolean) readonly hideControls!: boolean
 
     private keyboard = GuacamoleKeyboard()
-    private observer = new ResizeObserver(this.onResise.bind(this))
+    private observer = new ResizeObserver(this.onResize.bind(this))
     private focused = false
     private fullscreen = false
+    private startsMuted = true
+    private mutedOverlay = true
 
     get admin() {
       return this.$accessor.user.admin
@@ -201,6 +239,10 @@
 
     get hosting() {
       return this.$accessor.remote.hosting
+    }
+
+    get implicitHosting() {
+      return this.$accessor.remote.implicitHosting
     }
 
     get hosted() {
@@ -235,8 +277,13 @@
       return this.$accessor.settings.autoplay
     }
 
+    // server-side lock
+    get controlLocked() {
+      return 'control' in this.$accessor.locked && this.$accessor.locked['control'] && !this.$accessor.user.admin
+    }
+
     get locked() {
-      return this.$accessor.remote.locked
+      return this.$accessor.remote.locked || (this.controlLocked && (!this.hosting || this.implicitHosting))
     }
 
     get scroll() {
@@ -245,6 +292,19 @@
 
     get scroll_invert() {
       return this.$accessor.settings.scroll_invert
+    }
+
+    get pip_available() {
+      //@ts-ignore
+      return typeof document.createElement('video').requestPictureInPicture === 'function'
+    }
+
+    get clipboard_read_available() {
+      return 'clipboard' in navigator && typeof navigator.clipboard.readText === 'function'
+    }
+
+    get clipboard_write_available() {
+      return 'clipboard' in navigator && typeof navigator.clipboard.writeText === 'function'
     }
 
     get clipboard() {
@@ -273,25 +333,32 @@
 
     @Watch('width')
     onWidthChanged(width: number) {
-      this.onResise()
+      this.onResize()
     }
 
     @Watch('height')
     onHeightChanged(height: number) {
-      this.onResise()
+      this.onResize()
     }
 
     @Watch('volume')
     onVolumeChanged(volume: number) {
-      if (this._video) {
-        this._video.volume = this.volume / 100
+      volume /= 100
+
+      if (this._video && this._video.volume != volume) {
+        this._video.volume = volume
       }
     }
 
     @Watch('muted')
     onMutedChanged(muted: boolean) {
-      if (this._video) {
+      if (this._video && this._video.muted != muted) {
         this._video.muted = muted
+        this.startsMuted = muted
+
+        if (!muted) {
+          this.mutedOverlay = false
+        }
       }
     }
 
@@ -311,39 +378,47 @@
 
     @Watch('playing')
     onPlayingChanged(playing: boolean) {
-      if (playing) {
+      if (this._video && this._video.paused && playing) {
         this.play()
-      } else {
+      }
+
+      if (this._video && !this._video.paused && !playing) {
         this.pause()
       }
     }
 
     @Watch('clipboard')
-    onClipboardChanged(clipboard: string) {
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-        navigator.clipboard.writeText(clipboard).catch(console.error)
+    async onClipboardChanged(clipboard: string) {
+      if (this.clipboard_write_available) {
+        try {
+          await navigator.clipboard.writeText(clipboard)
+          this.$accessor.remote.setClipboard(clipboard)
+        } catch (err: any) {
+          this.$log.error(err)
+        }
       }
     }
 
     mounted() {
-      this._container.addEventListener('resize', this.onResise)
+      this._container.addEventListener('resize', this.onResize)
       this.onVolumeChanged(this.volume)
+      this.onMutedChanged(this.muted)
       this.onStreamChanged(this.stream)
-      this.onResise()
+      this.onResize()
 
       this.observer.observe(this._component)
 
-      this._player.addEventListener('fullscreenchange', () => {
-        this.fullscreen = document.fullscreenElement !== null
-        this.onResise()
+      onFullscreenChange(this._player, () => {
+        this.fullscreen = isFullscreen()
+        this.onResize()
       })
 
       this._video.addEventListener('canplaythrough', () => {
         this.$accessor.video.setPlayable(true)
         if (this.autoplay) {
-          if (!document.hasFocus() || !this.$accessor.active) {
+          // start as muted due to restrictive browsers autoplay policy
+          if (this.startsMuted && (!document.hasFocus() || !this.$accessor.active)) {
             this.$accessor.video.setMuted(true)
-            this._video.muted = true
           }
 
           this.$nextTick(() => {
@@ -361,24 +436,34 @@
         this.$accessor.video.setPlayable(false)
       })
 
-      document.addEventListener('focusin', this.onFocus.bind(this))
-      document.addEventListener('focusout', this.onBlur.bind(this))
+      this._video.addEventListener('volumechange', (event) => {
+        this.$accessor.video.setMuted(this._video.muted)
+        this.$accessor.video.setVolume(this._video.volume * 100)
+      })
+
+      this._video.addEventListener('playing', () => {
+        this.$accessor.video.play()
+      })
+
+      this._video.addEventListener('pause', () => {
+        this.$accessor.video.pause()
+      })
 
       /* Initialize Guacamole Keyboard */
       this.keyboard.onkeydown = (key: number) => {
-        if (!this.focused || !this.hosting || this.locked) {
+        if (!this.hosting || this.locked) {
           return true
         }
 
-        this.$client.sendData('keydown', { key })
+        this.$client.sendData('keydown', { key: this.keyMap(key) })
         return false
       }
       this.keyboard.onkeyup = (key: number) => {
-        if (!this.focused || !this.hosting || this.locked) {
+        if (!this.hosting || this.locked) {
           return
         }
 
-        this.$client.sendData('keyup', { key })
+        this.$client.sendData('keyup', { key: this.keyMap(key) })
       }
       this.keyboard.listenTo(this._overlay)
     }
@@ -386,24 +471,63 @@
     beforeDestroy() {
       this.observer.disconnect()
       this.$accessor.video.setPlayable(false)
-      document.removeEventListener('focusin', this.onFocus.bind(this))
-      document.removeEventListener('focusout', this.onBlur.bind(this))
       /* Guacamole Keyboard does not provide destroy functions */
     }
 
-    play() {
+    get hasMacOSKbd() {
+      return /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)
+    }
+
+    KeyTable = {
+      XK_ISO_Level3_Shift: 0xfe03, // AltGr
+      XK_Mode_switch: 0xff7e, // Character set switch
+      XK_Control_L: 0xffe3, // Left control
+      XK_Control_R: 0xffe4, // Right control
+      XK_Meta_L: 0xffe7, // Left meta
+      XK_Meta_R: 0xffe8, // Right meta
+      XK_Alt_L: 0xffe9, // Left alt
+      XK_Alt_R: 0xffea, // Right alt
+      XK_Super_L: 0xffeb, // Left super
+      XK_Super_R: 0xffec, // Right super
+    }
+
+    keyMap(key: number): number {
+      // Alt behaves more like AltGraph on macOS, so shuffle the
+      // keys around a bit to make things more sane for the remote
+      // server. This method is used by noVNC, RealVNC and TigerVNC
+      // (and possibly others).
+      if (this.hasMacOSKbd) {
+        switch (key) {
+          case this.KeyTable.XK_Meta_L:
+            key = this.KeyTable.XK_Control_L
+            break
+          case this.KeyTable.XK_Super_L:
+            key = this.KeyTable.XK_Alt_L
+            break
+          case this.KeyTable.XK_Super_R:
+            key = this.KeyTable.XK_Super_L
+            break
+          case this.KeyTable.XK_Alt_L:
+            key = this.KeyTable.XK_Mode_switch
+            break
+          case this.KeyTable.XK_Alt_R:
+            key = this.KeyTable.XK_ISO_Level3_Shift
+            break
+        }
+      }
+
+      return key
+    }
+
+    async play() {
       if (!this._video.paused || !this.playable) {
         return
       }
 
       try {
-        this._video
-          .play()
-          .then(() => {
-            this.onResise()
-          })
-          .catch((err) => this.$log.error)
-      } catch (err) {
+        await this._video.play()
+        this.onResize()
+      } catch (err: any) {
         this.$log.error(err)
       }
     }
@@ -428,6 +552,10 @@
       }
     }
 
+    unmute() {
+      this.$accessor.video.setMuted(false)
+    }
+
     toggleControl() {
       if (!this.playable) {
         return
@@ -436,54 +564,80 @@
       this.$accessor.remote.toggle()
     }
 
+    requestControl() {
+      this.$accessor.remote.request()
+    }
+
     requestFullscreen() {
-      this._player.requestFullscreen()
-      this.onResise()
-    }
-
-    onFocus() {
-      if (!document.hasFocus() || !this.$accessor.active) {
+      // try to fullscreen player element
+      if (elementRequestFullscreen(this._player)) {
+        this.onResize()
         return
       }
 
-      if (this.hosting && navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
-        navigator.clipboard
-          .readText()
-          .then((text) => {
-            if (this.clipboard !== text) {
-              this.$accessor.remote.setClipboard(text)
-              this.$accessor.remote.sendClipboard(text)
-            }
-          })
-          .catch(this.$log.error)
-      }
-    }
-
-    onBlur() {
-      if (!this.focused || !this.hosting || this.locked) {
+      // fallback to fullscreen video itself (on mobile devices)
+      if (elementRequestFullscreen(this._video)) {
+        this.onResize()
         return
       }
-
-      this.keyboard.reset()
     }
 
-    onMousePos(e: MouseEvent) {
+    requestPictureInPicture() {
+      //@ts-ignore
+      this._video.requestPictureInPicture()
+      this.onResize()
+    }
+
+    openResolution(event: MouseEvent) {
+      this._resolution.open(event)
+    }
+
+    openClipboard() {
+      this._clipboard.open()
+    }
+
+    async syncClipboard() {
+      if (this.clipboard_read_available) {
+        try {
+          const text = await navigator.clipboard.readText()
+          if (this.clipboard !== text) {
+            this.$accessor.remote.setClipboard(text)
+            this.$accessor.remote.sendClipboard(text)
+          }
+        } catch (err: any) {
+          this.$log.error(err)
+        }
+      }
+    }
+
+    sendMousePos(e: MouseEvent) {
       const { w, h } = this.$accessor.video.resolution
       const rect = this._overlay.getBoundingClientRect()
+
       this.$client.sendData('mousemove', {
         x: Math.round((w / rect.width) * (e.clientX - rect.left)),
         y: Math.round((h / rect.height) * (e.clientY - rect.top)),
       })
     }
 
+    wheelThrottle = false
     onWheel(e: WheelEvent) {
       if (!this.hosting || this.locked) {
         return
       }
-      this.onMousePos(e)
 
       let x = e.deltaX
       let y = e.deltaY
+
+      // Pixel units unless it's non-zero.
+      // Note that if deltamode is line or page won't matter since we aren't
+      // sending the mouse wheel delta to the server anyway.
+      // The difference between pixel and line can be important however since
+      // we have a threshold that can be smaller than the line height.
+      if (e.deltaMode !== 0) {
+        x *= WHEEL_LINE_HEIGHT
+        y *= WHEEL_LINE_HEIGHT
+      }
 
       if (this.scroll_invert) {
         x = x * -1
@@ -493,14 +647,28 @@
       x = Math.min(Math.max(x, -this.scroll), this.scroll)
       y = Math.min(Math.max(y, -this.scroll), this.scroll)
 
-      this.$client.sendData('wheel', { x, y })
+      this.sendMousePos(e)
+
+      if (!this.wheelThrottle) {
+        this.wheelThrottle = true
+        this.$client.sendData('wheel', { x, y })
+
+        window.setTimeout(() => {
+          this.wheelThrottle = false
+        }, 100)
+      }
     }
 
     onMouseDown(e: MouseEvent) {
+      if (!this.hosting) {
+        this.$emit('control-attempt', e)
+      }
+
       if (!this.hosting || this.locked) {
         return
       }
-      this.onMousePos(e)
+
+      this.sendMousePos(e)
       this.$client.sendData('mousedown', { key: e.button + 1 })
     }
 
@@ -508,7 +676,8 @@
       if (!this.hosting || this.locked) {
         return
       }
-      this.onMousePos(e)
+
+      this.sendMousePos(e)
       this.$client.sendData('mouseup', { key: e.button + 1 })
     }
 
@@ -516,37 +685,53 @@
       if (!this.hosting || this.locked) {
         return
       }
-      this.onMousePos(e)
+
+      this.sendMousePos(e)
     }
 
     onMouseEnter(e: MouseEvent) {
-      this._overlay.focus()
-      this.onFocus()
+      if (this.hosting) {
+        this.$accessor.remote.syncKeyboardModifierState({
+          capsLock: e.getModifierState('CapsLock'),
+          numLock: e.getModifierState('NumLock'),
+          scrollLock: e.getModifierState('ScrollLock'),
+        })
+
+        this.syncClipboard()
+      }
+
       this.focused = true
     }
 
     onMouseLeave(e: MouseEvent) {
+      if (this.hosting) {
+        this.$accessor.remote.setKeyboardModifierState({
+          capsLock: e.getModifierState('CapsLock'),
+          numLock: e.getModifierState('NumLock'),
+          scrollLock: e.getModifierState('ScrollLock'),
+        })
+      }
+
+      this.keyboard.reset()
       this.focused = false
     }
 
-    onResise() {
-      let height = 0
-      if (!this.fullscreen) {
-        const { offsetWidth, offsetHeight } = this._component
-        this._player.style.width = `${offsetWidth}px`
-        this._player.style.height = `${offsetHeight}px`
-        height = offsetHeight
-      } else {
-        const { offsetWidth, offsetHeight } = this._player
-        height = offsetHeight
-      }
-
-      this._container.style.maxWidth = `${(this.horizontal / this.vertical) * height}px`
+    onResize() {
+      const { offsetWidth, offsetHeight } = !this.fullscreen ? this._component : document.body
+      this._player.style.width = `${offsetWidth}px`
+      this._player.style.height = `${offsetHeight}px`
+      this._container.style.maxWidth = `${(this.horizontal / this.vertical) * offsetHeight}px`
       this._aspect.style.paddingBottom = `${(this.vertical / this.horizontal) * 100}%`
     }
 
-    onResolution(event: MouseEvent) {
-      this._resolution.open(event)
+    @Watch('focused')
+    @Watch('hosting')
+    @Watch('locked')
+    onFocus() {
+      // in order to capture key events, overlay must be focused
+      if (this.focused && this.hosting && !this.locked) {
+        this._overlay.focus()
+      }
     }
   }
 </script>

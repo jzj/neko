@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"n.eko.moe/neko"
+	"m1k1o/neko"
 )
 
 func Execute() error {
@@ -36,23 +36,18 @@ func init() {
 		zerolog.TimeFieldFormat = ""
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
-		if viper.GetBool("debug") {
-			zerolog.SetGlobalLevel(zerolog.DebugLevel)
-		}
-
 		console := zerolog.ConsoleWriter{Out: os.Stdout}
 
 		if !viper.GetBool("logs") {
 			log.Logger = log.Output(console)
 		} else {
-
 			logs := filepath.Join(".", "logs")
 			if runtime.GOOS == "linux" {
 				logs = "/var/log/neko"
 			}
 
 			if _, err := os.Stat(logs); os.IsNotExist(err) {
-				os.Mkdir(logs, os.ModePerm)
+				_ = os.Mkdir(logs, os.ModePerm)
 			}
 
 			latest := filepath.Join(logs, "neko-latest.log")
@@ -103,9 +98,14 @@ func init() {
 			}
 		}
 
+		debug := viper.GetBool("debug")
+		if debug {
+			zerolog.SetGlobalLevel(zerolog.DebugLevel)
+		}
+
 		file := viper.ConfigFileUsed()
 		logger := log.With().
-			Bool("debug", viper.GetBool("debug")).
+			Bool("debug", debug).
 			Str("logging", viper.GetString("logs")).
 			Str("config", file).
 			Logger()

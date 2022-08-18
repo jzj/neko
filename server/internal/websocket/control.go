@@ -1,13 +1,12 @@
 package websocket
 
 import (
-	"n.eko.moe/neko/internal/types"
-	"n.eko.moe/neko/internal/types/event"
-	"n.eko.moe/neko/internal/types/message"
+	"m1k1o/neko/internal/types"
+	"m1k1o/neko/internal/types/event"
+	"m1k1o/neko/internal/types/message"
 )
 
 func (h *MessageHandler) controlRelease(id string, session types.Session) error {
-
 	// check if session is host
 	if !h.sessions.IsHost(id) {
 		h.logger.Debug().Str("id", id).Msg("is not the host")
@@ -34,8 +33,18 @@ func (h *MessageHandler) controlRelease(id string, session types.Session) error 
 func (h *MessageHandler) controlRequest(id string, session types.Session) error {
 	// check for host
 	if !h.sessions.HasHost() {
+		// check if control is locked or user is admin
+		_, ok := h.locked["control"]
+		if ok && !session.Admin() {
+			h.logger.Debug().Msg("control is locked")
+			return nil
+		}
+
 		// set host
-		h.sessions.SetHost(id)
+		err := h.sessions.SetHost(id)
+		if err != nil {
+			return err
+		}
 
 		// let everyone know
 		if err := h.sessions.Broadcast(
@@ -88,8 +97,18 @@ func (h *MessageHandler) controlGive(id string, session types.Session, payload *
 		return nil
 	}
 
+	// check if control is locked or giver is admin
+	_, ok := h.locked["control"]
+	if ok && !session.Admin() {
+		h.logger.Debug().Msg("control is locked")
+		return nil
+	}
+
 	// set host
-	h.sessions.SetHost(payload.ID)
+	err := h.sessions.SetHost(payload.ID)
+	if err != nil {
+		return err
+	}
 
 	// let everyone know
 	if err := h.sessions.Broadcast(
@@ -106,9 +125,9 @@ func (h *MessageHandler) controlGive(id string, session types.Session, payload *
 }
 
 func (h *MessageHandler) controlClipboard(id string, session types.Session, payload *message.Clipboard) error {
-	// check if session is host
-	if !h.sessions.IsHost(id) {
-		h.logger.Debug().Str("id", id).Msg("is not the host")
+	// check if session can access clipboard
+	if (!h.webrtc.ImplicitControl() && !h.sessions.IsHost(id)) || (h.webrtc.ImplicitControl() && !h.sessions.CanControl(id)) {
+		h.logger.Debug().Str("id", id).Msg("cannot access clipboard")
 		return nil
 	}
 
@@ -117,12 +136,47 @@ func (h *MessageHandler) controlClipboard(id string, session types.Session, payl
 }
 
 func (h *MessageHandler) controlKeyboard(id string, session types.Session, payload *message.Keyboard) error {
-	// check if session is host
-	if !h.sessions.IsHost(id) {
-		h.logger.Debug().Str("id", id).Msg("is not the host")
+	// check if session can control keyboard
+	if (!h.webrtc.ImplicitControl() && !h.sessions.IsHost(id)) || (h.webrtc.ImplicitControl() && !h.sessions.CanControl(id)) {
+		h.logger.Debug().Str("id", id).Msg("cannot control keyboard")
 		return nil
 	}
 
-	h.remote.SetKeyboardLayout(payload.Layout)
+	// change layout
+	if payload.Layout != nil {
+		h.remote.SetKeyboardLayout(*payload.Layout)
+	}
+
+	// set num lock
+	var NumLock = 0
+	if payload.NumLock == nil {
+		NumLock = -1
+	} else if *payload.NumLock {
+		NumLock = 1
+	}
+
+	// set caps lock
+	var CapsLock = 0
+	if payload.CapsLock == nil {
+		CapsLock = -1
+	} else if *payload.CapsLock {
+		CapsLock = 1
+	}
+
+	// set scroll lock
+	var ScrollLock = 0
+	if payload.ScrollLock == nil {
+		ScrollLock = -1
+	} else if *payload.ScrollLock {
+		ScrollLock = 1
+	}
+
+	h.logger.Debug().
+		Int("NumLock", NumLock).
+		Int("CapsLock", CapsLock).
+		Int("ScrollLock", ScrollLock).
+		Msg("setting keyboard modifiers")
+
+	h.remote.SetKeyboardModifiers(NumLock, CapsLock, ScrollLock)
 	return nil
 }

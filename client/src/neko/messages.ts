@@ -14,7 +14,9 @@ import { Member, ScreenConfigurations, ScreenResolution } from './types'
 export type WebSocketMessages =
   | WebSocketMessage
   | SignalProvideMessage
+  | SignalOfferMessage
   | SignalAnswerMessage
+  | SignalCandidateMessage
   | MemberListMessage
   | MemberConnectMessage
   | MemberDisconnectMessage
@@ -25,7 +27,9 @@ export type WebSocketMessages =
 
 export type WebSocketPayloads =
   | SignalProvidePayload
+  | SignalOfferPayload
   | SignalAnswerPayload
+  | SignalCandidatePayload
   | MemberListPayload
   | Member
   | ControlPayload
@@ -37,6 +41,9 @@ export type WebSocketPayloads =
   | ScreenResolutionPayload
   | ScreenConfigurationsPayload
   | AdminPayload
+  | AdminLockPayload
+  | BroadcastStatusPayload
+  | BroadcastCreatePayload
 
 export interface WebSocketMessage {
   event: WebSocketEvents | string
@@ -45,11 +52,22 @@ export interface WebSocketMessage {
 /*
   SYSTEM MESSAGES/PAYLOADS
 */
-// system/disconnect
-export interface DisconnectMessage extends WebSocketMessage, DisconnectPayload {
-  event: typeof EVENT.SYSTEM.DISCONNECT
+// system/init
+export interface SystemInit extends WebSocketMessage, SystemInitPayload {
+  event: typeof EVENT.SYSTEM.INIT
 }
-export interface DisconnectPayload {
+export interface SystemInitPayload {
+  implicit_hosting: boolean
+  locks: Record<string, string>
+}
+
+// system/disconnect
+// system/error
+export interface SystemMessage extends WebSocketMessage, SystemMessagePayload {
+  event: typeof EVENT.SYSTEM.DISCONNECT | typeof EVENT.SYSTEM.ERROR
+}
+export interface SystemMessagePayload {
+  title: string
   message: string
 }
 
@@ -63,7 +81,15 @@ export interface SignalProvideMessage extends WebSocketMessage, SignalProvidePay
 export interface SignalProvidePayload {
   id: string
   lite: boolean
-  ice: string[]
+  ice: RTCIceServer[]
+  sdp: string
+}
+
+// signal/offer
+export interface SignalOfferMessage extends WebSocketMessage, SignalOfferPayload {
+  event: typeof EVENT.SIGNAL.OFFER
+}
+export interface SignalOfferPayload {
   sdp: string
 }
 
@@ -74,6 +100,14 @@ export interface SignalAnswerMessage extends WebSocketMessage, SignalAnswerPaylo
 export interface SignalAnswerPayload {
   sdp: string
   displayname: string
+}
+
+// signal/candidate
+export interface SignalCandidateMessage extends WebSocketMessage, SignalCandidatePayload {
+  event: typeof EVENT.SIGNAL.CANDIDATE
+}
+export interface SignalCandidatePayload {
+  data: string
 }
 
 /*
@@ -122,7 +156,10 @@ export interface ControlClipboardPayload {
 }
 
 export interface ControlKeyboardPayload {
-  layout: string
+  layout?: string
+  capsLock?: boolean
+  numLock?: boolean
+  scrollLock?: boolean
 }
 
 /*
@@ -175,6 +212,18 @@ export interface ScreenConfigurationsPayload {
 }
 
 /*
+  BROADCAST PAYLOADS
+*/
+export interface BroadcastCreatePayload {
+  url:   string
+}
+
+export interface BroadcastStatusPayload {
+  url:      string
+  isActive: boolean
+}
+
+/*
   ADMIN PAYLOADS
 */
 export interface AdminMessage extends WebSocketMessage, AdminPayload {
@@ -192,4 +241,15 @@ export interface AdminTargetMessage extends WebSocketMessage, AdminTargetPayload
 export interface AdminTargetPayload {
   id: string
   target?: string
+}
+
+export interface AdminLockMessage extends WebSocketMessage, AdminLockPayload {
+  event: AdminEvents
+  id: string
+}
+
+export type AdminLockResource = 'login' | 'control'
+
+export interface AdminLockPayload {
+  resource: AdminLockResource
 }

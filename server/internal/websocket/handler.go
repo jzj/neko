@@ -6,50 +6,45 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 
-	"n.eko.moe/neko/internal/types"
-	"n.eko.moe/neko/internal/types/event"
-	"n.eko.moe/neko/internal/types/message"
-	"n.eko.moe/neko/internal/utils"
+	"m1k1o/neko/internal/types"
+	"m1k1o/neko/internal/types/event"
+	"m1k1o/neko/internal/types/message"
+	"m1k1o/neko/internal/utils"
 )
 
 type MessageHandler struct {
-	logger   zerolog.Logger
-	sessions types.SessionManager
-	webrtc   types.WebRTCManager
-	remote   types.RemoteManager
-	banned   map[string]bool
-	locked   bool
+	logger    zerolog.Logger
+	sessions  types.SessionManager
+	webrtc    types.WebRTCManager
+	remote    types.RemoteManager
+	broadcast types.BroadcastManager
+	banned    map[string]string // IP -> session ID (that banned it)
+	locked    map[string]string // resource name -> session ID (that locked it)
 }
 
-func (h *MessageHandler) Connected(id string, socket *WebSocket) (bool, string, error) {
+func (h *MessageHandler) Connected(admin bool, socket *WebSocket) (bool, string) {
 	address := socket.Address()
 	if address == "" {
 		h.logger.Debug().Msg("no remote address")
 	} else {
-		ok, banned := h.banned[address]
-		if ok && banned {
+		_, ok := h.banned[address]
+		if ok {
 			h.logger.Debug().Str("address", address).Msg("banned")
-			return false, "banned", nil
+			return false, "banned"
 		}
 	}
 
-	if h.locked {
-		session, ok := h.sessions.Get(id)
-		if !ok || !session.Admin() {
-			h.logger.Debug().Msg("server locked")
-			return false, "locked", nil
-		}
+	_, ok := h.locked["login"]
+	if ok && !admin {
+		h.logger.Debug().Msg("server locked")
+		return false, "locked"
 	}
 
-	return true, "", nil
+	return true, ""
 }
 
-func (h *MessageHandler) Disconnected(id string) error {
-	if h.locked && len(h.sessions.Admins()) == 0 {
-		h.locked = false
-	}
-
-	return h.sessions.Destroy(id)
+func (h *MessageHandler) Disconnected(id string) {
+	h.sessions.Destroy(id)
 }
 
 func (h *MessageHandler) Message(id string, raw []byte) error {
@@ -60,16 +55,22 @@ func (h *MessageHandler) Message(id string, raw []byte) error {
 
 	session, ok := h.sessions.Get(id)
 	if !ok {
-		errors.Errorf("unknown session id %s", id)
+		return errors.Errorf("unknown session id %s", id)
 	}
 
 	switch header.Event {
 	// Signal Events
+	case event.SIGNAL_OFFER:
+		payload := &message.SignalOffer{}
+		return errors.Wrapf(
+			utils.Unmarshal(payload, raw, func() error {
+				return h.signalRemoteOffer(id, session, payload)
+			}), "%s failed", header.Event)
 	case event.SIGNAL_ANSWER:
 		payload := &message.SignalAnswer{}
 		return errors.Wrapf(
 			utils.Unmarshal(payload, raw, func() error {
-				return h.signalAnswer(id, session, payload)
+				return h.signalRemoteAnswer(id, session, payload)
 			}), "%s failed", header.Event)
 
 	// Control Events
@@ -95,7 +96,6 @@ func (h *MessageHandler) Message(id string, raw []byte) error {
 			utils.Unmarshal(payload, raw, func() error {
 				return h.controlKeyboard(id, session, payload)
 			}), "%s failed", header.Event)
-
 
 	// Chat Events
 	case event.CHAT_MESSAGE:
@@ -123,11 +123,29 @@ func (h *MessageHandler) Message(id string, raw []byte) error {
 				return h.screenSet(id, session, payload)
 			}), "%s failed", header.Event)
 
+	// Boradcast Events
+	case event.BORADCAST_CREATE:
+		payload := &message.BroadcastCreate{}
+		return errors.Wrapf(
+			utils.Unmarshal(payload, raw, func() error {
+				return h.boradcastCreate(session, payload)
+			}), "%s failed", header.Event)
+	case event.BORADCAST_DESTROY:
+		return errors.Wrapf(h.boradcastDestroy(session), "%s failed", header.Event)
+
 	// Admin Events
 	case event.ADMIN_LOCK:
-		return errors.Wrapf(h.adminLock(id, session), "%s failed", header.Event)
+		payload := &message.AdminLock{}
+		return errors.Wrapf(
+			utils.Unmarshal(payload, raw, func() error {
+				return h.adminLock(id, session, payload)
+			}), "%s failed", header.Event)
 	case event.ADMIN_UNLOCK:
-		return errors.Wrapf(h.adminUnlock(id, session), "%s failed", header.Event)
+		payload := &message.AdminLock{}
+		return errors.Wrapf(
+			utils.Unmarshal(payload, raw, func() error {
+				return h.adminUnlock(id, session, payload)
+			}), "%s failed", header.Event)
 	case event.ADMIN_CONTROL:
 		return errors.Wrapf(h.adminControl(id, session), "%s failed", header.Event)
 	case event.ADMIN_RELEASE:

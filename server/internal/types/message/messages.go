@@ -1,30 +1,49 @@
 package message
 
 import (
-	"n.eko.moe/neko/internal/types"
+	"m1k1o/neko/internal/types"
+
+	"github.com/pion/webrtc/v3"
 )
 
 type Message struct {
 	Event string `json:"event"`
 }
 
-type Disconnect struct {
+type SystemInit struct {
+	Event           string            `json:"event"`
+	ImplicitHosting bool              `json:"implicit_hosting"`
+	Locks           map[string]string `json:"locks"`
+}
+
+type SystemMessage struct {
 	Event   string `json:"event"`
+	Title   string `json:"title"`
 	Message string `json:"message"`
 }
 
 type SignalProvide struct {
-	Event string   `json:"event"`
-	ID    string   `json:"id"`
-	SDP   string   `json:"sdp"`
-	Lite  bool     `json:"lite"`
-	ICE   []string `json:"ice"`
+	Event string             `json:"event"`
+	ID    string             `json:"id"`
+	SDP   string             `json:"sdp"`
+	Lite  bool               `json:"lite"`
+	ICE   []webrtc.ICEServer `json:"ice"`
+}
+
+type SignalOffer struct {
+	Event string `json:"event"`
+	SDP   string `json:"sdp"`
 }
 
 type SignalAnswer struct {
 	Event       string `json:"event"`
 	DisplayName string `json:"displayname"`
 	SDP         string `json:"sdp"`
+}
+
+type SignalCandidate struct {
+	Event string `json:"event"`
+	Data  string `json:"data"`
 }
 
 type MembersList struct {
@@ -47,8 +66,11 @@ type Clipboard struct {
 }
 
 type Keyboard struct {
-	Event  string `json:"event"`
-	Layout string `json:"layout"`
+	Event      string  `json:"event"`
+	Layout     *string `json:"layout,omitempty"`
+	CapsLock   *bool   `json:"capsLock,omitempty"`
+	NumLock    *bool   `json:"numLock,omitempty"`
+	ScrollLock *bool   `json:"scrollLock,omitempty"`
 }
 
 type Control struct {
@@ -95,6 +117,12 @@ type AdminTarget struct {
 	ID     string `json:"id"`
 }
 
+type AdminLock struct {
+	Event    string `json:"event"`
+	Resource string `json:"resource"`
+	ID       string `json:"id"`
+}
+
 type ScreenResolution struct {
 	Event  string `json:"event"`
 	ID     string `json:"id,omitempty"`
@@ -106,4 +134,15 @@ type ScreenResolution struct {
 type ScreenConfigurations struct {
 	Event          string                            `json:"event"`
 	Configurations map[int]types.ScreenConfiguration `json:"configurations"`
+}
+
+type BroadcastStatus struct {
+	Event    string `json:"event"`
+	URL      string `json:"url"`
+	IsActive bool   `json:"isActive"`
+}
+
+type BroadcastCreate struct {
+	Event string `json:"event"`
+	URL   string `json:"url"`
 }

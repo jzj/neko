@@ -1,21 +1,8 @@
 import md, { SingleNodeParserRule, HtmlOutputRule, defaultRules, State, Rules } from 'simple-markdown'
 import { Component, Watch, Vue, Prop } from 'vue-property-decorator'
 
-const {
-  blockQuote,
-  inlineCode,
-  codeBlock,
-  autolink,
-  newline,
-  escape,
-  strong,
-  text,
-  link,
-  url,
-  em,
-  u,
-  br,
-} = defaultRules
+const { blockQuote, inlineCode, codeBlock, autolink, newline, escape, strong, text, link, url, em, u, br } =
+  defaultRules
 
 type Rule = SingleNodeParserRule & HtmlOutputRule
 
@@ -103,7 +90,7 @@ const rules: MarkdownRules = {
       }
     },
     html(node, output, state) {
-      return htmlTag('pre', htmlTag('code', node.content, state), {}, state)
+      return htmlTag('pre', htmlTag('code', md.sanitizeText(node.content), {}, state), {}, state)
     },
   },
   blockQuote: {
@@ -214,7 +201,7 @@ const rules: MarkdownRules = {
   },
   emoji: {
     order: md.defaultRules.strong.order,
-    match: (source) => /^:([a-zA-z_-]*):/.exec(source),
+    match: (source) => /^:([^:\s]+):/.exec(source),
     parse(capture) {
       return {
         id: capture[1],

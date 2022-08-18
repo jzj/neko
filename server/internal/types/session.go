@@ -21,9 +21,12 @@ type Session interface {
 	SetPeer(peer Peer) error
 	Address() string
 	Kick(message string) error
-	Write(v interface{}) error
 	Send(v interface{}) error
-	SignalAnswer(sdp string) error
+	SignalLocalOffer(sdp string) error
+	SignalLocalAnswer(sdp string) error
+	SignalRemoteOffer(sdp string) error
+	SignalRemoteAnswer(sdp string) error
+	SignalCandidate(data string) error
 }
 
 type SessionManager interface {
@@ -35,11 +38,14 @@ type SessionManager interface {
 	ClearHost()
 	Has(id string) bool
 	Get(id string) (Session, bool)
+	SetControlLocked(locked bool)
+	CanControl(id string) bool
 	Members() []*Member
 	Admins() []*Member
-	Destroy(id string) error
+	Destroy(id string)
 	Clear() error
 	Broadcast(v interface{}, exclude interface{}) error
+	AdminBroadcast(v interface{}, exclude interface{}) error
 	OnHost(listener func(id string))
 	OnHostCleared(listener func(id string))
 	OnDestroy(listener func(id string, session Session))

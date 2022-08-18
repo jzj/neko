@@ -1,8 +1,8 @@
 package xorg
 
 /*
-#cgo linux CFLAGS: -I/usr/src -I/usr/local/include/
-#cgo linux LDFLAGS: /usr/local/lib/libclipboard.a -L/usr/src -L/usr/local/lib -lX11 -lXtst -lXrandr -lxcb
+#cgo CFLAGS: -I/usr/local/include/
+#cgo LDFLAGS: /usr/local/lib/libclipboard.a -L/usr/local/lib -lX11 -lXtst -lXrandr -lxcb
 
 #include "xorg.h"
 */
@@ -13,9 +13,8 @@ import (
 	"sync"
 	"time"
 	"unsafe"
-	"regexp"
 
-	"n.eko.moe/neko/internal/types"
+	"m1k1o/neko/internal/types"
 )
 
 var ScreenConfigurations = make(map[int]types.ScreenConfiguration)
@@ -76,7 +75,7 @@ func KeyDown(code uint64) error {
 
 	debounce_key[code] = time.Now()
 
-	C.XKey(C.ulong(code), C.int(1))
+	C.XKey(C.KeySym(code), C.int(1))
 	return nil
 }
 
@@ -104,7 +103,7 @@ func KeyUp(code uint64) error {
 
 	delete(debounce_key, code)
 
-	C.XKey(C.ulong(code), C.int(0))
+	C.XKey(C.KeySym(code), C.int(0))
 	return nil
 }
 
@@ -130,12 +129,12 @@ func WriteClipboard(data string) {
 
 func ResetKeys() {
 	for code := range debounce_button {
-		ButtonUp(code)
+		_ = ButtonUp(code)
 
 		delete(debounce_button, code)
 	}
 	for code := range debounce_key {
-		KeyUp(code)
+		_ = KeyUp(code)
 
 		delete(debounce_key, code)
 	}
@@ -147,7 +146,7 @@ func CheckKeys(duration time.Duration) {
 		if t.Sub(start) < duration {
 			continue
 		}
-		ButtonUp(code)
+		_ = ButtonUp(code)
 
 		delete(debounce_button, code)
 	}
@@ -155,7 +154,7 @@ func CheckKeys(duration time.Duration) {
 		if t.Sub(start) < duration {
 			continue
 		}
-		KeyUp(code)
+		_ = KeyUp(code)
 
 		delete(debounce_key, code)
 	}
@@ -211,18 +210,11 @@ func GetScreenSize() *types.ScreenSize {
 	return nil
 }
 
-func SetKeyboardLayout(layout string) {
+func SetKeyboardModifiers(num_lock int, caps_lock int, scroll_lock int) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	if !regexp.MustCompile(`^[a-zA-Z]+$`).MatchString(layout) {
-		return
-	}
-
-	layoutUnsafe := C.CString(layout)
-	defer C.free(unsafe.Pointer(layoutUnsafe))
-
-	C.SetKeyboardLayout(layoutUnsafe)
+	C.SetKeyboardModifiers(C.int(num_lock), C.int(caps_lock), C.int(scroll_lock))
 }
 
 //export goCreateScreenSize

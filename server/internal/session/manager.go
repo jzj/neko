@@ -2,13 +2,14 @@ package session
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/kataras/go-events"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"n.eko.moe/neko/internal/types"
-	"n.eko.moe/neko/internal/utils"
+	"m1k1o/neko/internal/types"
+	"m1k1o/neko/internal/utils"
 )
 
 func New(remote types.RemoteManager) *SessionManager {
@@ -22,11 +23,14 @@ func New(remote types.RemoteManager) *SessionManager {
 }
 
 type SessionManager struct {
+	mu      sync.Mutex
 	logger  zerolog.Logger
 	host    string
 	remote  types.RemoteManager
 	members map[string]*Session
 	emmiter events.EventEmmiter
+	// TODO: Handle locks in sessions as flags.
+	controlLocked bool
 }
 
 func (manager *SessionManager) New(id string, admin bool, socket types.WebSocket) types.Session {
@@ -39,13 +43,14 @@ func (manager *SessionManager) New(id string, admin bool, socket types.WebSocket
 		connected: false,
 	}
 
+	manager.mu.Lock()
 	manager.members[id] = session
-	manager.emmiter.Emit("created", id, session)
-
-	if manager.remote.Streaming() != true && len(manager.members) > 0 {
+	if !manager.remote.Streaming() && len(manager.members) > 0 {
 		manager.remote.StartStream()
 	}
+	manager.mu.Unlock()
 
+	manager.emmiter.Emit("created", id, session)
 	return session
 }
 
@@ -58,16 +63,23 @@ func (manager *SessionManager) IsHost(id string) bool {
 }
 
 func (manager *SessionManager) SetHost(id string) error {
+	manager.mu.Lock()
 	_, ok := manager.members[id]
+	manager.mu.Unlock()
+
 	if ok {
 		manager.host = id
 		manager.emmiter.Emit("host", id)
 		return nil
 	}
+
 	return fmt.Errorf("invalid session id %s", id)
 }
 
 func (manager *SessionManager) GetHost() (types.Session, bool) {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+
 	host, ok := manager.members[manager.host]
 	return host, ok
 }
@@ -79,16 +91,35 @@ func (manager *SessionManager) ClearHost() {
 }
 
 func (manager *SessionManager) Has(id string) bool {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+
 	_, ok := manager.members[id]
 	return ok
 }
 
 func (manager *SessionManager) Get(id string) (types.Session, bool) {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+
 	session, ok := manager.members[id]
 	return session, ok
 }
 
+// TODO: Handle locks in sessions as flags.
+func (manager *SessionManager) SetControlLocked(locked bool) {
+	manager.controlLocked = locked
+}
+
+func (manager *SessionManager) CanControl(id string) bool {
+	session, ok := manager.Get(id)
+	return ok && (!manager.controlLocked || session.Admin())
+}
+
 func (manager *SessionManager) Admins() []*types.Member {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+
 	members := []*types.Member{}
 	for _, session := range manager.members {
 		if !session.connected || !session.admin {
@@ -100,10 +131,14 @@ func (manager *SessionManager) Admins() []*types.Member {
 			members = append(members, member)
 		}
 	}
+
 	return members
 }
 
 func (manager *SessionManager) Members() []*types.Member {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+
 	members := []*types.Member{}
 	for _, session := range manager.members {
 		if !session.connected {
@@ -118,21 +153,24 @@ func (manager *SessionManager) Members() []*types.Member {
 	return members
 }
 
-func (manager *SessionManager) Destroy(id string) error {
+func (manager *SessionManager) Destroy(id string) {
+	manager.mu.Lock()
 	session, ok := manager.members[id]
 	if ok {
 		err := session.destroy()
 		delete(manager.members, id)
 
-		if manager.remote.Streaming() != false && len(manager.members) <= 0 {
+		if manager.remote.Streaming() && len(manager.members) <= 0 {
 			manager.remote.StopStream()
 		}
+		manager.mu.Unlock()
 
 		manager.emmiter.Emit("destroyed", id, session)
-		return err
+		manager.logger.Err(err).Str("session_id", id).Msg("destroying session")
+		return
 	}
 
-	return nil
+	manager.mu.Unlock()
 }
 
 func (manager *SessionManager) Clear() error {
@@ -140,6 +178,9 @@ func (manager *SessionManager) Clear() error {
 }
 
 func (manager *SessionManager) Broadcast(v interface{}, exclude interface{}) error {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+
 	for id, session := range manager.members {
 		if !session.connected {
 			continue
@@ -155,6 +196,30 @@ func (manager *SessionManager) Broadcast(v interface{}, exclude interface{}) err
 			return err
 		}
 	}
+
+	return nil
+}
+
+func (manager *SessionManager) AdminBroadcast(v interface{}, exclude interface{}) error {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+
+	for id, session := range manager.members {
+		if !session.connected || !session.admin {
+			continue
+		}
+
+		if exclude != nil {
+			if in, _ := utils.ArrayIn(id, exclude); in {
+				continue
+			}
+		}
+
+		if err := session.Send(v); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

@@ -2,9 +2,16 @@
   <div class="chat">
     <ul class="chat-history" ref="history" @click="onClick">
       <template v-for="(message, index) in history">
-        <li :key="index" class="message" v-if="message.type === 'text'">
+        <li
+          :key="index"
+          class="message"
+          v-if="message.type === 'text'"
+          :class="{
+            bulk: index > 0 && history[index - 1].id == message.id && history[index - 1].type === 'text',
+          }"
+        >
           <div class="author" @contextmenu.stop.prevent="onContext($event, { member: member(message.id) })">
-            <img :src="`https://ui-avatars.com/api/?name=${member(message.id).displayname}.png&size=40`" />
+            <neko-avatar class="avatar" :seed="member(message.id).displayname" :size="40" />
           </div>
           <div class="content">
             <div class="content-head">
@@ -24,7 +31,7 @@
               boundariesElement: 'body',
             }"
           >
-            <strong v-if="message.id === id">{{ $t('you') }}</strong>
+            <strong v-if="message.id === id && $te('you')">{{ $t('you') }}</strong>
             <strong v-else>{{ member(message.id).displayname }}</strong>
             {{ message.content }}
           </div>
@@ -94,6 +101,7 @@
         word-wrap: break-word;
 
         &.message {
+          padding-top: 15px;
           font-size: 16px;
 
           .author {
@@ -104,9 +112,9 @@
             height: 40px;
             border-radius: 50%;
             background: $style-primary;
-            margin: 0px 10px 10px 0px;
+            margin-right: 10px;
 
-            img {
+            .avatar {
               width: 100%;
             }
           }
@@ -219,6 +227,19 @@
               }
             }
           }
+
+          &.bulk {
+            padding-top: 0px;
+
+            .author {
+              visibility: hidden;
+              height: 0;
+            }
+
+            .content-head {
+              display: none;
+            }
+          }
         }
 
         &.event {
@@ -329,6 +350,7 @@
   import Markdown from './markdown'
   import Content from './context.vue'
   import Emoji from './emoji.vue'
+  import Avatar from './avatar.vue'
 
   const length = 512 // max length of message
 
@@ -338,6 +360,7 @@
       'neko-markdown': Markdown,
       'neko-context': Content,
       'neko-emoji': Emoji,
+      'neko-avatar': Avatar,
     },
   })
   export default class extends Vue {
@@ -381,7 +404,7 @@
     }
 
     member(id: string) {
-      return this.$accessor.user.members[id]
+      return this.$accessor.user.members[id] || { id, displayname: this.$t('somebody') }
     }
 
     timestamp(time: Date) {
