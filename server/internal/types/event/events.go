@@ -1,6 +1,7 @@
 package event
 
 const (
+	SYSTEM_INIT       = "system/init"
 	SYSTEM_DISCONNECT = "system/disconnect"
 	SYSTEM_ERROR      = "system/error"
 )
@@ -31,6 +32,11 @@ const (
 const (
 	CHAT_MESSAGE = "chat/message"
 	CHAT_EMOTE   = "chat/emote"
+)
+
+const (
+	FILETRANSFER_LIST    = "filetransfer/list"
+	FILETRANSFER_REFRESH = "filetransfer/refresh"
 )
 
 const (

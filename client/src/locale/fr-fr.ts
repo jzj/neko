@@ -8,6 +8,7 @@ export const send_a_message = 'Envoyer un message'
 
 export const side = {
   chat: 'Chat',
+  files: 'Fichiers',
   settings: 'Paramètres',
 }
 
@@ -46,6 +47,16 @@ export const context = {
   },
 }
 
+export const controls = {
+  release: 'Relacher le contrôle',
+  request: 'Demander le contrôle',
+  lock: 'Vérouiller le contrôle',
+  unlock: 'Débloquer le contrôle',
+  // TODO
+  //  has: 'You have control',
+  //  hasnot: 'You do not have control',
+}
+
 export const locks = {
   // TODO
   //control: {
@@ -57,20 +68,22 @@ export const locks = {
   //  notif_unlocked: 'unlocked controls for users',
   //},
   login: {
-    release: 'Relacher le contrôle',
-    request: 'Demander le contrôle',
-    lock: 'Vérouiller le contrôle',
-    unlock: 'Débloquer le contrôle',
+    lock: 'Vérouiller la salle (pour les utilisateurs)',
+    unlock: 'Dévérouiller la salle (pour les utilisateurs)',
+    locked: 'Salle vérouillée (pour les utilisateurs)',
+    unlocked: 'Salle dévérouillée (pour les utilisateurs)',
     notif_locked: 'a vérouillé la salle',
     notif_unlocked: 'a dévérouillé la salle',
   },
-}
-
-export const room = {
-  lock: 'Vérouiller la salle (pour les utilisateurs)',
-  unlock: 'Dévérouiller la salle (pour les utilisateurs)',
-  locked: 'Salle vérouillée (pour les utilisateurs)',
-  unlocked: 'Salle dévérouillée (pour les utilisateurs)',
+  // TODO
+  //file_transfer: {
+  //  lock: 'Lock File Transfer (for users)',
+  //  unlock: 'Unlock File Transfer (for users)',
+  //  locked: 'File Transfer Locked (for users)',
+  //  unlocked: 'File Transfer Unlocked (for users)',
+  //  notif_locked: 'locked file transfer',
+  //  notif_unlocked: 'unlocked file transfer',
+  //},
 }
 
 export const setting = {
@@ -113,4 +126,10 @@ export const notifications = {
   kicked: 'a kick {name}',
   muted: 'a mute {name}',
   unmuted: 'a démute {name}',
+}
+
+export const files = {
+  downloads: 'Téléchargements',
+  uploads: 'Télécharger',
+  upload_here: 'Cliquez ou faites glisser les fichiers ici pour les télécharger',
 }

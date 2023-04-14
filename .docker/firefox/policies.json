@@ -56,8 +56,8 @@
       "*": {
         "installation_mode": "blocked"
       },
-      "nordvpnproxy@nordvpn.com": {
-        "install_url": "https://addons.mozilla.org/firefox/downloads/latest/nordvpn-proxy-extension/latest.xpi",
+      "sponsorBlocker@ajay.app": {
+        "install_url": "https://addons.mozilla.org/firefox/downloads/latest/sponsorblock/latest.xpi",
         "installation_mode": "force_installed"
       },
       "uBlock0@raymondhill.net": {
@@ -108,7 +108,7 @@
       "datareporting.policy.dataSubmissionPolicyBypassNotification": true,
       "dom.disable_window_flip": true,
       "dom.disable_window_move_resize": true,
-      "dom.event.contextmenu.enabled": false,
+      "dom.event.contextmenu.enabled": true,
       "extensions.getAddons.showPane": false,
       "places.history.enabled": false,
       "privacy.file_unique_origin": true,

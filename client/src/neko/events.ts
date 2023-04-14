@@ -10,6 +10,7 @@ export const EVENT = {
 
   // Websocket Events
   SYSTEM: {
+    INIT: 'system/init',
     DISCONNECT: 'system/disconnect',
     ERROR: 'system/error',
   },
@@ -36,6 +37,10 @@ export const EVENT = {
   CHAT: {
     MESSAGE: 'chat/message',
     EMOTE: 'chat/emote',
+  },
+  FILETRANSFER: {
+    LIST: 'filetransfer/list',
+    REFRESH: 'filetransfer/refresh',
   },
   SCREEN: {
     CONFIGURATIONS: 'screen/configurations',
@@ -68,6 +73,7 @@ export type WebSocketEvents =
   | MemberEvents
   | SignalEvents
   | ChatEvents
+  | FileTransferEvents
   | ScreenEvents
   | BroadcastEvents
   | AdminEvents
@@ -90,6 +96,9 @@ export type SignalEvents =
   | typeof EVENT.SIGNAL.CANDIDATE
 
 export type ChatEvents = typeof EVENT.CHAT.MESSAGE | typeof EVENT.CHAT.EMOTE
+
+export type FileTransferEvents = typeof EVENT.FILETRANSFER.LIST | typeof EVENT.FILETRANSFER.REFRESH
+
 export type ScreenEvents = typeof EVENT.SCREEN.CONFIGURATIONS | typeof EVENT.SCREEN.RESOLUTION | typeof EVENT.SCREEN.SET
 
 export type BroadcastEvents =

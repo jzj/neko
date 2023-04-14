@@ -77,7 +77,7 @@
 
             &.self {
               &::before {
-                font-family: 'Font Awesome 5 Free';
+                font-family: 'Font Awesome 6 Free';
                 font-weight: 900;
                 content: '\f2bd';
                 background: $background-floating;
@@ -97,7 +97,7 @@
             &.admin {
               &::before {
                 display: block;
-                font-family: 'Font Awesome 5 Free';
+                font-family: 'Font Awesome 6 Free';
                 font-weight: 900;
                 content: '\f3ed';
                 color: $style-primary;
@@ -114,7 +114,7 @@
 
             &.host::after {
               display: block;
-              font-family: 'Font Awesome 5 Free';
+              font-family: 'Font Awesome 6 Free';
               font-weight: 900;
               content: '\f521';
               background: $style-primary;
@@ -157,8 +157,7 @@
 </style>
 
 <script lang="ts">
-  import { Component, Ref, Watch, Vue } from 'vue-property-decorator'
-  import { Member } from '~/neko/types'
+  import { Component, Ref, Vue } from 'vue-property-decorator'
 
   import Content from './context.vue'
   import Avatar from './avatar.vue'

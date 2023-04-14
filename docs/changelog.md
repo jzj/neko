@@ -2,8 +2,77 @@
 
 ## master branch
 
+### New Features
+- Added nvidia support for firefox.
+
+## [n.eko v2.8.0](https://github.com/m1k1o/neko/releases/tag/v2.8.0)
+
+### New Features
+- Added AV1 tag, metadata and pipeline. Unfortunately does not work yet, since the encoding is way too slow (by @mbattista).
+- Added `m1k1o/neko:kde` tag as an alternative to `m1k1o/neko:xfce`.
+- New VirtualGL version 3.1 was released, adding support for Chromium browsers to use Nvidia GPU acceleration!
+- Added `?embed=1` parameter to the URL, which will hide the sidebar and the top bar, so that it can be embedded in other websites.
+- Added `?volume=<0-1>` parameter to the URL, which will set the inital volume of the player (by @urbanekpj).
+- Touch events are now supported on mobile devices (by @urbanekpj).
+- Added NVENC support, hardware h264 encoding for Nvidia GPUs!
+- Fixed an issue where `nvh264enc` did not send SPS and PPS NAL units (by @mbattista).
+
+### Bugs
+- Fixed TCP mux occasional freeze by adding write buffer to it.
+- Fixed stereo problem in chromium-based browsers, where it was only as mono by adding `stereo=1` to opus SDP to clients answer.
+- Fixed keysym mapping for unknown keycodes, which was causing some key combinations to not work on some keyboards.
+- Fixed a bug where `max_fps=0` would lead to an invalid pipeline.
+- Fixed client side webrtc ICE gathering, so that neko can be used without exposed ports, only with STUN and TURN servers.
+- Fixed play state synchronization, when autoplay is disabled.
+
+### Misc
+- Updated to go 1.19 and Node 18, removed go-events as dependency (by @mbattista).
+- Added adaptive framerate which now streams in the framerate you selected from the dropdown.
+- Improved chinese and korean characters support.
+- Disabled autolock for kde, so that it does not lock the screen when you are not using it.
+- Refactored autoplay, so that it will start playing audio, if it's allowed by the browser (by @urbanekpj).
+- Renamed pulseaudio sink from `auto_null` to `audio_output`, because it was ignored by KDE.
+- Pulseaudio is now configured using environment variables, so that users can mount `/home/neko` without losing audio configuration.
+
+## [n.eko v2.7](https://github.com/m1k1o/neko/releases/tag/v2.7)
+
+### New Features
+- Added `m1k1o/neko:vivaldi` tag (thanks @Xeddius).
+- Added `m1k1o/neko:opera` tag (thanks @prophetofxenu).
+- Added `NEKO_PATH_PREFIX`.
+- Added screenshot function `/screenshot.jpg?pwd=<admin>`, works only for unlocked rooms.
+- Added emoji support (by @yesBad).
+- Added file transfer (by @prophetofxenu).
+
+### Misc
+- Server: Split `remote` to `desktop` and `capture`.
+- Server: Refactored `xorg` - added `xevent` and clipboard is handled as event (no looped polling anymore).
+- Introduced `NEKO_AUDIO_CODEC=` and `NEKO_VIDEO_CODEC=` as a new way of setting codecs.
+- Added CORS.
+- Opera versions are not hardcoded in Dockerfile anymore but automatically are fetch latest.
+
+## [n.eko v2.6](https://github.com/m1k1o/neko/releases/tag/v2.6)
+
+### Bugs
+- Fixed fullscreen incompatibility for Safari [#121](https://github.com/m1k1o/neko/issues/121).
+- Fixed bad emoji matching for e.g. `:+1:` and `:100:` with new regex `/^:([^:\s]+):/`.
+
+### New Features
+- Added `m1k1o/neko:microsoft-edge` tag.
+- Fixed clipboard sync in chromium based browsers.
+- Added support for implicit control (using `NEKO_IMPLICITCONTROL=1`). That means, users do not need to request control prior usage.
+- Automatically start broadcasting using `NEKO_BROADCAST_URL=rtmp://your-rtmp-endpoint/live` (thanks @konsti).
+- Added `m1k1o/neko:remmina` tag (by @lowne).
+
 ### Misc
 - Automatic WebRTC SDP negotiation using onnegotiationneeded handlers. This allows adding/removing track on demand in a session.
+- Added UDP and TCP mux for WebRTC connection. It should handle multiple peers.
+- Broadcast status change is sent to all admins now.
+- NordVPN replaced with Sponsorblock extension in default configuration #144.
+- Removed `vncviewer` image, as its functionality is replaced and extended by remmina.
+- Opus uses `useinbandfec=1` from now on, hopefully fixes minor audio loss issues.
+- Font Awesome and Sweetalert2 upgraded to newest major version.
+- Add chinese characters support.
 
 ## [n.eko v2.5](https://github.com/m1k1o/neko/releases/tag/v2.5)
 

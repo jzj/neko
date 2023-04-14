@@ -12,19 +12,20 @@ export const state = () => ({
   id: '',
   clipboard: '',
   locked: false,
-
+  implicitHosting: true,
+  fileTransfer: true,
   keyboardModifierState: -1,
 })
 
 export const getters = getterTree(state, {
   hosting: (state, getters, root) => {
-    return root.user.id === state.id
+    return root.user.id === state.id || state.implicitHosting
   },
-  hosted: (state, getters, root) => {
-    return state.id !== ''
+  hosted: (state) => {
+    return state.id !== '' || state.implicitHosting
   },
   host: (state, getters, root) => {
-    return root.user.members[state.id] || null
+    return root.user.members[state.id] || (state.implicitHosting && root.user.id) || null
   },
 })
 
@@ -49,11 +50,18 @@ export const mutations = mutationTree(state, {
     state.locked = locked
   },
 
+  setImplicitHosting(state, val: boolean) {
+    state.implicitHosting = val
+  },
+
+  setFileTransfer(state, val: boolean) {
+    state.fileTransfer = val
+  },
+
   reset(state) {
     state.id = ''
     state.clipboard = ''
     state.locked = false
-    state.keyboardModifierState = -1
   },
 })
 
@@ -128,7 +136,7 @@ export const actions = actionTree(
       $client.sendMessage(EVENT.ADMIN.RELEASE)
     },
 
-    adminGive({ getters }, member: string | Member) {
+    adminGive(store, member: string | Member) {
       if (!accessor.connected) {
         return
       }
@@ -152,7 +160,7 @@ export const actions = actionTree(
       $client.sendMessage(EVENT.CONTROL.KEYBOARD, { layout: accessor.settings.keyboard_layout })
     },
 
-    syncKeyboardModifierState({ state, getters }, { capsLock, numLock, scrollLock }) {
+    syncKeyboardModifierState({ state }, { capsLock, numLock, scrollLock }) {
       if (state.keyboardModifierState === keyboardModifierState(capsLock, numLock, scrollLock)) {
         return
       }

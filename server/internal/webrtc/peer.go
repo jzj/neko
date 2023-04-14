@@ -1,20 +1,17 @@
 package webrtc
 
 import (
+	"encoding/json"
 	"sync"
 
 	"github.com/pion/webrtc/v3"
 )
 
 type Peer struct {
-	id            string
-	api           *webrtc.API
-	engine        *webrtc.MediaEngine
-	manager       *WebRTCManager
-	settings      *webrtc.SettingEngine
-	connection    *webrtc.PeerConnection
-	configuration *webrtc.Configuration
-	mu            sync.Mutex
+	id         string
+	mu         sync.Mutex
+	manager    *WebRTCManager
+	connection *webrtc.PeerConnection
 }
 
 func (peer *Peer) CreateOffer() (string, error) {
@@ -51,6 +48,16 @@ func (peer *Peer) SetOffer(sdp string) error {
 
 func (peer *Peer) SetAnswer(sdp string) error {
 	return peer.connection.SetRemoteDescription(webrtc.SessionDescription{SDP: sdp, Type: webrtc.SDPTypeAnswer})
+}
+
+func (peer *Peer) SetCandidate(candidateString string) error {
+	var candidate webrtc.ICECandidateInit
+	err := json.Unmarshal([]byte(candidateString), &candidate)
+	if err != nil {
+		return err
+	}
+
+	return peer.connection.AddICECandidate(candidate)
 }
 
 func (peer *Peer) WriteData(v interface{}) error {

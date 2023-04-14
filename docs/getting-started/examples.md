@@ -6,7 +6,7 @@
 version: "3.4"
 services:
   neko:
-    image: "m1k1o/neko:latest"
+    image: "m1k1o/neko:firefox"
     restart: "unless-stopped"
     shm_size: "2gb"
     ports:
@@ -68,8 +68,6 @@ services:
 
 ## Raspberry Pi
 
-Note! Since HW accelerated pipeline is using H264, you are only able to connect from browsers supporting H264 for WebRTC. At the time of implementing, [Firefox does not support this](https://developer.mozilla.org/en-US/docs/Web/Media/Formats/WebRTC_codecs#supported-foot-1). When omitting `NEKO_VIDEO` and `NEKO_H264` parameters, you get default CPU encoding with VP8.
-
 ```yaml
 version: "3.4"
 services:
@@ -97,10 +95,10 @@ services:
           ! videoconvert
           ! queue
           ! video/x-raw,framerate=30/1,format=NV12
-          ! v4l2h264enc extra-controls="controls,h264_profile=0,video_bitrate=1250000;"
+          ! v4l2h264enc extra-controls="controls,h264_profile=1,video_bitrate=1250000;"
           ! h264parse config-interval=3
-          ! video/x-h264,profile=baseline,stream-format=byte-stream
-      NEKO_H264: 1
+          ! video/x-h264,stream-format=byte-stream,profile=constrained-baseline
+      NEKO_VIDEO_CODEC: h264
 ```
 
 ## Not using docker?

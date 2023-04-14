@@ -97,7 +97,7 @@
 </style>
 
 <script lang="ts">
-  import { Component, Ref, Watch, Vue } from 'vue-property-decorator'
+  import { Component, Ref, Vue } from 'vue-property-decorator'
   import { ScreenResolution } from '~/neko/types'
 
   // @ts-ignore
@@ -110,7 +110,7 @@
     },
   })
   export default class extends Vue {
-    @Ref('context') readonly context!: any
+    @Ref('context') readonly context!: VueContext
 
     get width() {
       return this.$accessor.video.width

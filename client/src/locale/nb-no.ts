@@ -8,6 +8,7 @@ export const send_a_message = 'Send en melding'
 
 export const side = {
   chat: 'Sludring',
+  files: 'Filer',
   settings: 'Innstillinger',
 }
 
@@ -51,6 +52,9 @@ export const controls = {
   request: 'Forespør kontroll',
   lock: 'Lås kontrollen',
   unlock: 'Lås opp kontrollen',
+  // TODO
+  //has: 'You have control',
+  //hasnot: 'You do not have control',
 }
 
 export const locks = {
@@ -71,6 +75,15 @@ export const locks = {
     notif_locked: 'låste rommet',
     notif_unlocked: 'låste opp rommet',
   },
+  // TODO
+  //file_transfer: {
+  //  lock: 'Lock File Transfer (for users)',
+  //  unlock: 'Unlock File Transfer (for users)',
+  //  locked: 'File Transfer Locked (for users)',
+  //  unlocked: 'File Transfer Unlocked (for users)',
+  //  notif_locked: 'locked file transfer',
+  //  notif_unlocked: 'unlocked file transfer',
+  //},
 }
 
 export const setting = {
@@ -113,4 +126,10 @@ export const notifications = {
   kicked: 'kastet ut {name}',
   muted: 'forstummet {name}',
   unmuted: 'opphevet forstummingen av {name}',
+}
+
+export const files = {
+  downloads: 'Overførsler',
+  uploads: 'Overfør',
+  upload_here: 'Klik eller træk filer her for at uploade',
 }
