@@ -14,6 +14,7 @@ type SystemInit struct {
 	Event           string            `json:"event"`
 	ImplicitHosting bool              `json:"implicit_hosting"`
 	Locks           map[string]string `json:"locks"`
+	FileTransfer    bool              `json:"file_transfer"`
 }
 
 type SystemMessage struct {
@@ -47,8 +48,8 @@ type SignalCandidate struct {
 }
 
 type MembersList struct {
-	Event    string          `json:"event"`
-	Memebers []*types.Member `json:"members"`
+	Event   string          `json:"event"`
+	Members []*types.Member `json:"members"`
 }
 
 type Member struct {
@@ -70,7 +71,7 @@ type Keyboard struct {
 	Layout     *string `json:"layout,omitempty"`
 	CapsLock   *bool   `json:"capsLock,omitempty"`
 	NumLock    *bool   `json:"numLock,omitempty"`
-	ScrollLock *bool   `json:"scrollLock,omitempty"`
+	ScrollLock *bool   `json:"scrollLock,omitempty"` // TODO: ScrollLock is deprecated.
 }
 
 type Control struct {
@@ -106,6 +107,12 @@ type EmoteSend struct {
 	Emote string `json:"emote"`
 }
 
+type FileTransferList struct {
+	Event string               `json:"event"`
+	Cwd   string               `json:"cwd"`
+	Files []types.FileListItem `json:"files"`
+}
+
 type Admin struct {
 	Event string `json:"event"`
 	ID    string `json:"id"`
@@ -128,7 +135,7 @@ type ScreenResolution struct {
 	ID     string `json:"id,omitempty"`
 	Width  int    `json:"width"`
 	Height int    `json:"height"`
-	Rate   int    `json:"rate"`
+	Rate   int16  `json:"rate"`
 }
 
 type ScreenConfigurations struct {

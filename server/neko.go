@@ -6,11 +6,11 @@ import (
 	"os/signal"
 	"runtime"
 
-	"m1k1o/neko/internal/broadcast"
+	"m1k1o/neko/internal/capture"
+	"m1k1o/neko/internal/config"
+	"m1k1o/neko/internal/desktop"
 	"m1k1o/neko/internal/http"
-	"m1k1o/neko/internal/remote"
 	"m1k1o/neko/internal/session"
-	"m1k1o/neko/internal/types/config"
 	"m1k1o/neko/internal/webrtc"
 	"m1k1o/neko/internal/websocket"
 
@@ -39,7 +39,7 @@ var (
 	// Major version when you make incompatible API changes,
 	major = "2"
 	// Minor version when you add functionality in a backwards-compatible manner, and
-	minor = "6"
+	minor = "8"
 	// Patch version when you make backwards-compatible bug fixes.
 	patch = "0"
 )
@@ -61,8 +61,8 @@ func init() {
 		},
 		Root:      &config.Root{},
 		Server:    &config.Server{},
-		Remote:    &config.Remote{},
-		Broadcast: &config.Broadcast{},
+		Capture:   &config.Capture{},
+		Desktop:   &config.Desktop{},
 		WebRTC:    &config.WebRTC{},
 		WebSocket: &config.WebSocket{},
 	}
@@ -100,8 +100,8 @@ func (i *Version) Details() string {
 type Neko struct {
 	Version   *Version
 	Root      *config.Root
-	Remote    *config.Remote
-	Broadcast *config.Broadcast
+	Capture   *config.Capture
+	Desktop   *config.Desktop
 	Server    *config.Server
 	WebRTC    *config.WebRTC
 	WebSocket *config.WebSocket
@@ -109,8 +109,8 @@ type Neko struct {
 	logger           zerolog.Logger
 	server           *http.Server
 	sessionManager   *session.SessionManager
-	remoteManager    *remote.RemoteManager
-	broadcastManager *broadcast.BroadcastManager
+	captureManager   *capture.CaptureManagerCtx
+	desktopManager   *desktop.DesktopManagerCtx
 	webRTCManager    *webrtc.WebRTCManager
 	webSocketHandler *websocket.WebSocketHandler
 }
@@ -120,25 +120,26 @@ func (neko *Neko) Preflight() {
 }
 
 func (neko *Neko) Start() {
-	broadcastManager := broadcast.New(neko.Remote, neko.Broadcast)
+	desktopManager := desktop.New(neko.Desktop)
+	desktopManager.Start()
 
-	remoteManager := remote.New(neko.Remote, broadcastManager)
-	remoteManager.Start()
+	captureManager := capture.New(desktopManager, neko.Capture)
+	captureManager.Start()
 
-	sessionManager := session.New(remoteManager)
+	sessionManager := session.New(captureManager)
 
-	webRTCManager := webrtc.New(sessionManager, remoteManager, neko.WebRTC)
+	webRTCManager := webrtc.New(sessionManager, captureManager, desktopManager, neko.WebRTC)
 	webRTCManager.Start()
 
-	webSocketHandler := websocket.New(sessionManager, remoteManager, broadcastManager, webRTCManager, neko.WebSocket)
+	webSocketHandler := websocket.New(sessionManager, desktopManager, captureManager, webRTCManager, neko.WebSocket)
 	webSocketHandler.Start()
 
-	server := http.New(neko.Server, webSocketHandler)
+	server := http.New(neko.Server, webSocketHandler, desktopManager)
 	server.Start()
 
-	neko.broadcastManager = broadcastManager
 	neko.sessionManager = sessionManager
-	neko.remoteManager = remoteManager
+	neko.captureManager = captureManager
+	neko.desktopManager = desktopManager
 	neko.webRTCManager = webRTCManager
 	neko.webSocketHandler = webSocketHandler
 	neko.server = server
@@ -147,20 +148,20 @@ func (neko *Neko) Start() {
 func (neko *Neko) Shutdown() {
 	var err error
 
-	err = neko.broadcastManager.Shutdown()
-	neko.logger.Err(err).Msg("broadcast manager shutdown")
-
-	err = neko.remoteManager.Shutdown()
-	neko.logger.Err(err).Msg("remote manager shutdown")
-
-	err = neko.webRTCManager.Shutdown()
-	neko.logger.Err(err).Msg("webrtc manager shutdown")
+	err = neko.server.Shutdown()
+	neko.logger.Err(err).Msg("server shutdown")
 
 	err = neko.webSocketHandler.Shutdown()
 	neko.logger.Err(err).Msg("websocket handler shutdown")
 
-	err = neko.server.Shutdown()
-	neko.logger.Err(err).Msg("server shutdown")
+	err = neko.webRTCManager.Shutdown()
+	neko.logger.Err(err).Msg("webrtc manager shutdown")
+
+	err = neko.captureManager.Shutdown()
+	neko.logger.Err(err).Msg("capture manager shutdown")
+
+	err = neko.desktopManager.Shutdown()
+	neko.logger.Err(err).Msg("desktop manager shutdown")
 }
 
 func (neko *Neko) ServeCommand(cmd *cobra.Command, args []string) {

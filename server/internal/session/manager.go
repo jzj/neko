@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/kataras/go-events"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -12,23 +11,23 @@ import (
 	"m1k1o/neko/internal/utils"
 )
 
-func New(remote types.RemoteManager) *SessionManager {
+func New(capture types.CaptureManager) *SessionManager {
 	return &SessionManager{
-		logger:  log.With().Str("module", "session").Logger(),
-		host:    "",
-		remote:  remote,
-		members: make(map[string]*Session),
-		emmiter: events.New(),
+		logger:        log.With().Str("module", "session").Logger(),
+		host:          "",
+		capture:       capture,
+		eventsChannel: make(chan types.SessionEvent, 10),
+		members:       make(map[string]*Session),
 	}
 }
 
 type SessionManager struct {
-	mu      sync.Mutex
-	logger  zerolog.Logger
-	host    string
-	remote  types.RemoteManager
-	members map[string]*Session
-	emmiter events.EventEmmiter
+	mu            sync.Mutex
+	logger        zerolog.Logger
+	host          string
+	capture       types.CaptureManager
+	members       map[string]*Session
+	eventsChannel chan types.SessionEvent
 	// TODO: Handle locks in sessions as flags.
 	controlLocked bool
 }
@@ -45,12 +44,16 @@ func (manager *SessionManager) New(id string, admin bool, socket types.WebSocket
 
 	manager.mu.Lock()
 	manager.members[id] = session
-	if !manager.remote.Streaming() && len(manager.members) > 0 {
-		manager.remote.StartStream()
-	}
+	manager.capture.Audio().AddListener()
+	manager.capture.Video().AddListener()
 	manager.mu.Unlock()
 
-	manager.emmiter.Emit("created", id, session)
+	manager.eventsChannel <- types.SessionEvent{
+		Type:    types.SESSION_CREATED,
+		Id:      id,
+		Session: session,
+	}
+
 	return session
 }
 
@@ -69,7 +72,12 @@ func (manager *SessionManager) SetHost(id string) error {
 
 	if ok {
 		manager.host = id
-		manager.emmiter.Emit("host", id)
+
+		manager.eventsChannel <- types.SessionEvent{
+			Type: types.SESSION_HOST_SET,
+			Id:   id,
+		}
+
 		return nil
 	}
 
@@ -87,7 +95,11 @@ func (manager *SessionManager) GetHost() (types.Session, bool) {
 func (manager *SessionManager) ClearHost() {
 	id := manager.host
 	manager.host = ""
-	manager.emmiter.Emit("host_cleared", id)
+
+	manager.eventsChannel <- types.SessionEvent{
+		Type: types.SESSION_HOST_CLEARED,
+		Id:   id,
+	}
 }
 
 func (manager *SessionManager) Has(id string) bool {
@@ -160,12 +172,15 @@ func (manager *SessionManager) Destroy(id string) {
 		err := session.destroy()
 		delete(manager.members, id)
 
-		if manager.remote.Streaming() && len(manager.members) <= 0 {
-			manager.remote.StopStream()
-		}
+		manager.capture.Audio().RemoveListener()
+		manager.capture.Video().RemoveListener()
 		manager.mu.Unlock()
 
-		manager.emmiter.Emit("destroyed", id, session)
+		manager.eventsChannel <- types.SessionEvent{
+			Type:    types.SESSION_DESTROYED,
+			Id:      id,
+			Session: session,
+		}
 		manager.logger.Err(err).Str("session_id", id).Msg("destroying session")
 		return
 	}
@@ -223,32 +238,6 @@ func (manager *SessionManager) AdminBroadcast(v interface{}, exclude interface{}
 	return nil
 }
 
-func (manager *SessionManager) OnHost(listener func(id string)) {
-	manager.emmiter.On("host", func(payload ...interface{}) {
-		listener(payload[0].(string))
-	})
-}
-
-func (manager *SessionManager) OnHostCleared(listener func(id string)) {
-	manager.emmiter.On("host_cleared", func(payload ...interface{}) {
-		listener(payload[0].(string))
-	})
-}
-
-func (manager *SessionManager) OnDestroy(listener func(id string, session types.Session)) {
-	manager.emmiter.On("destroyed", func(payload ...interface{}) {
-		listener(payload[0].(string), payload[1].(*Session))
-	})
-}
-
-func (manager *SessionManager) OnCreated(listener func(id string, session types.Session)) {
-	manager.emmiter.On("created", func(payload ...interface{}) {
-		listener(payload[0].(string), payload[1].(*Session))
-	})
-}
-
-func (manager *SessionManager) OnConnected(listener func(id string, session types.Session)) {
-	manager.emmiter.On("connected", func(payload ...interface{}) {
-		listener(payload[0].(string), payload[1].(*Session))
-	})
+func (manager *SessionManager) GetEventsChannel() chan types.SessionEvent {
+	return manager.eventsChannel
 }
